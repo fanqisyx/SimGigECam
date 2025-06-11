@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RegisterDescription
+    xmlns="http://www.genicam.org/GenApi/Schema/1.1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.genicam.org/GenApi/Schema/1.1 GenApiSchema_1_1.xsd"
+    VendorName="PythonSim" ModelName="PySimCam" StandardNameSpace="GEV" ToolTip="PySimCam Basic GenICam">
+    <Category Name="Root" Feature="DeviceControl">
+        <pFeature>DeviceControl</pFeature>
+        <pFeature>Width</pFeature>
+        <pFeature>Height</pFeature>
+        <pFeature>PixelFormat</pFeature>
+        <pFeature>AcquisitionStart</pFeature>
+        <pFeature>AcquisitionStop</pFeature>
+    </Category>
+    <Category Name="DeviceControl" Feature="DeviceVendorName">
+        <pFeature>DeviceVendorName</pFeature>
+        <pFeature>DeviceModelName</pFeature>
+        <pFeature>DeviceVersion</pFeature>
+        <pFeature>GevVersionMajor</pFeature>
+        <pFeature>GevVersionMinor</pFeature>
+    </Category>
+    <Integer Name="Width">
+        <ToolTip>Frame Width in pixels</ToolTip>
+        <Address>0x0A00</Address> <!-- Corresponds to our camera_registers -->
+        <Length>4</Length>
+        <AccessMode>RW</AccessMode>
+        <pSelected>WidthReg</pSelected>
+        <Min>64</Min>
+        <Max>2048</Max>
+        <Inc>1</Inc>
+        <Representation>Linear</Representation>
+        <Value>640</Value> <!-- Default value -->
+    </Integer>
+    <Integer Name="Height">
+        <ToolTip>Frame Height in pixels</ToolTip>
+        <Address>0x0A04</Address> <!-- Corresponds to our camera_registers -->
+        <Length>4</Length>
+        <AccessMode>RW</AccessMode>
+        <pSelected>HeightReg</pSelected>
+        <Min>64</Min>
+        <Max>2048</Max>
+        <Inc>1</Inc>
+        <Representation>Linear</Representation>
+        <Value>480</Value> <!-- Default value -->
+    </Integer>
+    <Enumeration Name="PixelFormat">
+        <ToolTip>Pixel Format</ToolTip>
+        <EnumEntry Name="Mono8" Value="0x01080001"> <!-- Example value for Mono8 -->
+            <ToolTip>Mono 8-bit</ToolTip>
+        </EnumEntry>
+        <Address>0x0A08</Address> <!-- New address for PixelFormat in registers -->
+        <Length>4</Length>
+        <AccessMode>RW</AccessMode>
+        <pSelected>PixelFormatReg</pSelected>
+        <Value>0x01080001</Value> <!-- Default value -->
+    </Enumeration>
+    <Command Name="AcquisitionStart">
+        <ToolTip>Starts image acquisition.</ToolTip>
+        <Address>0x0B00</Address> <!-- New address for AcquisitionStart command -->
+        <Length>4</Length>
+        <AccessMode>WO</AccessMode>
+        <CommandValue>1</CommandValue> <!-- Value to write to trigger -->
+    </Command>
+    <Command Name="AcquisitionStop">
+        <ToolTip>Stops image acquisition.</ToolTip>
+        <Address>0x0B04</Address> <!-- New address for AcquisitionStop command -->
+        <Length>4</Length>
+        <AccessMode>WO</AccessMode>
+        <CommandValue>1</CommandValue> <!-- Value to write to trigger -->
+    </Command>
+    <StringReg Name="DeviceVendorName">
+        <Address>0x0048</Address> <!-- Standard GEV address for the feature -->
+        <Length>32</Length> <!-- Max length -->
+        <AccessMode>RO</AccessMode>
+        <Value>PythonSim</Value> <!-- This value is metadata for the XML, actual value from memory -->
+    </StringReg>
+    <StringReg Name="DeviceModelName">
+        <Address>0x0068</Address> <!-- Standard GEV address for the feature -->
+        <Length>32</Length>
+        <AccessMode>RO</AccessMode>
+        <Value>PySimCam</Value>
+    </StringReg>
+    <StringReg Name="DeviceVersion">
+        <Address>0x0088</Address> <!-- Standard GEV address for the feature -->
+        <Length>32</Length>
+        <AccessMode>RO</AccessMode>
+        <Value>0.0.1</Value>
+    </StringReg>
+    <Integer Name="GevVersionMajor">
+         <Address>0x0030</Address> <!-- Standard GEV: GevVersionMajor (actually part of SFPBS_REGISTER_GVCP_VERSION_ADDRESS_OFFSET 0x0000, but split for XML) -->
+         <Length>2</Length>
+         <AccessMode>RO</AccessMode>
+         <Value>2</Value> <!-- Example: GEV 2.0 -->
+    </Integer>
+    <Integer Name="GevVersionMinor">
+         <Address>0x0032</Address> <!-- Standard GEV: GevVersionMinor -->
+         <Length>2</Length>
+         <AccessMode>RO</AccessMode>
+         <Value>0</Value>
+    </Integer>
+
+    <!-- Image Loading Features -->
+    <StringReg Name="ImageFilePath">
+        <ToolTip>File path for the image to be loaded by LoadImage command. Max 255 chars.</ToolTip>
+        <Address>0x31000</Address> <!-- Points to IMAGE_PATH_STRING_MEMORY_ADDRESS -->
+        <Length>256</Length>      <!-- Max path length including null terminator -->
+        <AccessMode>RW</AccessMode>
+        <pSelected>ImageFilePathReg</pSelected> <!-- Connects to a SwissKnife for register access -->
+        <Value>gige_simulator/sample_images/sample_image.png</Value> <!-- Default/Initial value in memory -->
+    </StringReg>
+
+    <Command Name="LoadImage">
+        <ToolTip>Triggers loading the image specified by ImageFilePath.</ToolTip>
+        <Address>0xC004</Address>   <!-- Register to write to trigger command -->
+        <Length>4</Length>
+        <AccessMode>WO</AccessMode>
+        <CommandValue>1</CommandValue>
+    </Command>
+
+    <!-- Stream Channel Control -->
+    <Integer Name="GevSCPHostPort">
+        <ToolTip>Stream Channel Port for Primary Application.</ToolTip>
+        <Address>0x0D18</Address>
+        <Length>4</Length>
+        <AccessMode>RW</AccessMode>
+        <pSelected>GevSCPHostPortReg</pSelected>
+        <Value>0</Value>
+    </Integer>
+    <Integer Name="GevSCPHostAddress">
+        <ToolTip>Stream Channel IP Address for Primary Application.</ToolTip>
+        <Address>0x0D1C</Address>
+        <Length>4</Length>
+        <AccessMode>RW</AccessMode>
+        <pSelected>GevSCPHostAddressReg</pSelected>
+        <Representation>HexNumber</Representation> <!-- Standard representation for IP addresses -->
+        <Value>0</Value>
+    </Integer>
+    <Integer Name="AcquisitionStatus">
+        <ToolTip>Indicates if acquisition is active (1) or stopped (0).</ToolTip>
+        <Address>0x0B08</Address>
+        <Length>4</Length>
+        <AccessMode>RO</AccessMode>
+        <pSelected>AcquisitionStatusReg</pSelected>
+        <Value>0</Value>
+    </Integer>
+
+
+    <!-- Register Definitions for XML access -->
+    <IntSwissKnife Name="WidthReg"/>
+    <IntSwissKnife Name="HeightReg"/>
+    <IntSwissKnife Name="PixelFormatReg"/>
+    <IntSwissKnife Name="ImageFilePathReg"/> <!-- For StringReg ImageFilePath -->
+    <IntSwissKnife Name="GevSCPHostPortReg"/>
+    <IntSwissKnife Name="GevSCPHostAddressReg"/>
+    <IntSwissKnife Name="AcquisitionStatusReg"/>
+</RegisterDescription>
