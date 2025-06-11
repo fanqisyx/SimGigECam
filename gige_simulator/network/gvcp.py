@@ -412,5 +412,4 @@ if __name__ == '__main__':
     # Provide a dummy default image path when testing gvcp.py standalone
     initialize_memory_map(os.path.join("..", "sample_images", "sample_image.png")) # Adjust path for direct run
     start_gvcp_listener()
-
 ```

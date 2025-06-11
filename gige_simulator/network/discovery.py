@@ -182,4 +182,3 @@ def start_discovery_listener():
             logger.error(f"Socket error during discovery recv/send: {e}", exc_info=False) # Less verbose for common socket errors
         except Exception as e: # Catch any other errors in the loop
             logger.error(f"Error in discovery listener loop: {e}", exc_info=True) # Log full traceback for unexpected errors
-```

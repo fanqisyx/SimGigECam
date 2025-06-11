@@ -148,4 +148,3 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"Could not remove dummy image '{dummy_file}': {e}")
     logger.info("StaticImageSource direct test run finished.")
-```

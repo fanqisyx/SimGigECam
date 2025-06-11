@@ -174,5 +174,3 @@ class GVSPStreamer:
             return
 
         logger.info(f"GVSP: Frame BID {self.block_id_counter} sent to {self.client_ip_str}:{self.client_port_int} ({self.current_frame_packet_id_counter} total packets).")
-
-```

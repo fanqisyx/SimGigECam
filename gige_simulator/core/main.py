@@ -133,4 +133,3 @@ def run_simulator():
 # (e.g., `python gige_simulator/core/main.py`), not when it's imported as a module.
 if __name__ == "__main__":
     run_simulator()
-```
