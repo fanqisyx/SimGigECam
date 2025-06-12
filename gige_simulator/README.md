@@ -1,57 +1,83 @@
 # GigE Camera Simulator
 
-This project is a basic simulator for a GigE Vision compliant camera. It aims to simulate the discovery, control (GVCP), and streaming (GVSP) protocols.
+This project is a basic simulator for a GigE Vision compliant camera. It aims to simulate the discovery, control (GVCP), and streaming (GVSP) protocols, and includes a basic PyQt6 GUI for interaction.
 
 ## How it Works
 
-The simulator operates using three main components:
+The simulator operates using several key components:
 
-1.  **Discovery (network/discovery.py)**:
-    *   Listens for broadcast messages from GigE Vision clients on a specific UDP port (default 3956).
-    *   When a discovery request is received, it responds with a DISCOVERY_ACK packet containing basic camera information (IP address, MAC, model name, manufacturer, etc.) and, crucially, the port on which the GVCP service is running.
+1.  **Core Backend (`core/simulator_backend.py`)**:
+    *   Manages the lifecycle of network services (Discovery, GVCP).
+    *   Handles shared resources like the image source and GVSP streamer instance.
+    *   Provides an interface for frontends (CLI/GUI) to interact with the simulation.
 
-2.  **GVCP - GigE Vision Control Protocol (network/gvcp.py)**:
-    *   Listens for commands on a specific UDP port (default 3957), as advertised in the discovery ACK.
+2.  **Discovery (`network/discovery.py`)**:
+    *   Listens for broadcast messages from GigE Vision clients on a specific UDP port.
+    *   Responds with a DISCOVERY_ACK packet containing basic camera information (IP, MAC, model, manufacturer, etc.) and the GVCP service port.
+
+3.  **GVCP - GigE Vision Control Protocol (`network/gvcp.py`)**:
+    *   Listens for commands on a specific UDP port, as advertised in the discovery ACK.
     *   Handles register read (`READREG_CMD`) and write (`WRITEREG_CMD`) operations.
-    *   **GenICam XML (genicam/genicam_model.xml)**: GVCP provides access to a GenICam XML file. This XML file describes all the features of the camera (e.g., width, height, pixel format, acquisition control) and their corresponding register addresses. Clients parse this XML to understand how to control the camera. The simulator serves this XML file when requested via specific GVCP bootstrap registers.
-    *   Manages camera state, such as current image dimensions, pixel format, acquisition mode, and GVSP stream destination.
+    *   **GenICam XML (`genicam/genicam_model.xml`)**: GVCP provides access to a GenICam XML file. This XML describes camera features (e.g., width, height, pixel format, acquisition control) and their register addresses. Clients parse this XML to control the camera.
+    *   Manages camera state (registers, current image, GVSP stream destination).
 
-3.  **GVSP - GigE Vision Streaming Protocol (network/gvsp_sender.py)**:
-    *   When image acquisition is started via a GVCP command:
-    *   GVSP prepares to send image data to a client-specified IP address and port (configured via GVCP registers).
-    *   It (currently) sends a single frame composed of:
-        *   A **Leader Packet**: Contains metadata about the image (e.g., size, pixel format, timestamp).
-        *   **Payload Packets**: Multiple packets containing the actual pixel data, respecting a maximum payload size.
-        *   A **Trailer Packet**: Marks the end of the frame's data.
-    *   The current implementation uses a simplified GVSP packet structure.
+4.  **GVSP - GigE Vision Streaming Protocol (`network/gvsp_sender.py`)**:
+    *   When image acquisition is started (via GVCP or GUI), GVSP sends image data to a client-specified IP/port.
+    *   Currently sends a single frame composed of Leader, Payload, and Trailer packets using a simplified structure.
+
+5.  **Image Source (`image_source/image_loader.py`)**:
+    *   Loads images from files (using Pillow) or generates test patterns.
+    *   Provides pixel data to the GVSP component.
+
+6.  **User Interfaces (CLI and GUI)**:
+    *   **CLI (`core/main.py`)**: Allows starting the backend with command-line arguments.
+    *   **GUI (`gui_main.py` and `gui/` panels)**: Provides a graphical interface to control the simulator.
 
 ## Features
 
 *   **GigE Discovery**: Responds to discovery broadcasts.
 *   **GVCP Implementation**: Basic register read/write, GenICam XML serving, image loading control, acquisition control, GVSP stream destination configuration.
 *   **GVSP Sender**: Sends a single image frame (Leader, Payloads, Trailer) with a simplified packet structure.
-*   **GenICam XML**: Includes `genicam/genicam_model.xml`.
-*   **Configurable**: Command-line arguments for ports, default image, log level.
-*   **Logging**: Structured logging across modules.
-*   **Image Source**: Loads images using Pillow (currently Mono8 focused).
-*   **Threading**: Discovery and GVCP listeners run in separate threads.
+*   **GenICam XML**: Includes `genicam/genicam_model.xml` describing camera features.
+*   **Configurable**:
+    *   **CLI**: Command-line arguments for ports, default image, log level.
+    *   **GUI**: Allows runtime modification of some parameters (e.g., image source, GVSP client).
+*   **Logging**: Structured logging across modules, viewable in the GUI or console.
+*   **Image Source**: Supports loading static images (PNG, JPG, BMP, TIFF via Pillow) and generating basic test patterns (solid color, grayscale ramp).
+*   **Threading**: Discovery and GVCP listeners run in separate daemon threads managed by the `SimulatorBackend`.
+*   **Graphical User Interface (GUI)**:
+    *   **Main Window**: Dockable panel interface using PyQt6.
+    *   **Main Control Panel**: Starting/stopping image acquisition for the default simulated camera, managing a list of (currently conceptual) virtual cameras.
+    *   **Camera Configuration Panel**: Viewing/editing camera parameters (Width, Height, PixelFormat), trigger mode (UI placeholder), GVSP client IP/Port. Supports saving/loading panel configuration to/from JSON. Allows applying settings to the backend simulator.
+    *   **Image Preview & Source Management Panel**: Displays a preview of the loaded static image or generated test pattern. Allows selecting the image source type, browsing for static files, or choosing a test pattern. Loading a new source updates the backend.
+    *   **Network Status & Log Window Panel**: Displays (currently placeholder) network statistics. Provides a real-time log display capturing messages from all simulator components, with level filtering and export capability.
+    *   **Toolbar**: Quick access to common functions (most are placeholders). Includes a (non-functional) theme toggle.
 
 ## Running the Simulator
 
-The simulator can be run as a Python module from the project's root directory:
+There are two ways to run the simulator:
+
+### 1. CLI Mode (Backend Services Only)
+
+This mode runs the discovery and GVCP listeners without a graphical interface.
+It can be run as a Python module from the project's root directory:
 
 ```bash
 python -m gige_simulator [options]
 ```
+Alternatively, you can run the main core script directly:
+```bash
+python gige_simulator/core/main.py [options]
+```
 
-**Options:**
+**CLI Options:**
 
 *   `--image_path` / `-i`: Path to the default image file (default: `gige_simulator/sample_images/sample_image.png`).
 *   `--discovery_port`: UDP port for GigE discovery (default: 3956).
 *   `--gvcp_port`: UDP port for GVCP commands (default: 3957).
 *   `--log_level`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL; default: INFO).
 
-**Examples:**
+**CLI Examples:**
 
 *   Run with default settings:
     ```bash
@@ -61,59 +87,85 @@ python -m gige_simulator [options]
     ```bash
     python -m gige_simulator -i path/to/your/image.jpeg --log_level DEBUG
     ```
-*   Change discovery and GVCP ports:
-    ```bash
-    python -m gige_simulator --discovery_port 3000 --gvcp_port 3001
-    ```
+
+### 2. GUI Mode
+
+This mode launches the PyQt6 graphical user interface.
+
+```bash
+python gige_simulator/gui_main.py
+```
+
+**GUI Notes:**
+
+*   The GUI internally starts a `SimulatorBackend` instance using a default image path.
+*   Running the GUI requires a desktop environment with a display server (e.g., X11 or Wayland) and the necessary Qt platform plugins. If you encounter errors like "Could not load the Qt platform plugin 'xcb'", you may need to install additional system libraries (see "Development Notes").
+*   Logging from all simulator components will be directed to the "Network & Logs" panel in the GUI.
 
 ## Project Structure
 
 *   `gige_simulator/`
-    *   `core/`: Main application logic and coordination.
-        *   `main.py`: Entry point, argument parsing, logging setup, thread management.
+    *   `core/`: Main application logic and backend.
+        *   `main.py`: CLI entry point.
+        *   `simulator_backend.py`: Central class for managing simulation services.
+    *   `gui/`: PyQt6 GUI components.
+        *   `gui_main.py`: Main window (`MainWindow`) for the GUI application.
+        *   `main_control_panel.py`: Panel for simulation and camera list management.
+        *   `camera_config_panel.py`: Panel for camera parameter configuration.
+        *   `image_source_panel.py`: Panel for image source selection and preview.
+        *   `network_log_panel.py`: Panel for displaying logs and network status.
     *   `network/`: GVCP, GVSP, and discovery protocol implementations.
         *   `discovery.py`: Handles GigE Vision discovery broadcasts.
         *   `gvcp.py`: Manages GVCP commands and register access.
         *   `gvsp_sender.py`: Constructs and sends GVSP image stream packets.
     *   `image_source/`: Image loading and management.
-        *   `image_loader.py`: `StaticImageSource` class for loading images with Pillow.
+        *   `image_loader.py`: `StaticImageSource` class.
     *   `genicam/`: GenICam XML device description file.
         *   `genicam_model.xml`: Describes camera features and register map.
     *   `sample_images/`: Contains sample images for testing.
     *   `tests/`: (Placeholder for unit tests).
     *   `__init__.py`: Marks directories as Python packages.
-    *   `__main__.py`: Enables running as `python -m gige_simulator`.
+    *   `__main__.py`: Enables running CLI as `python -m gige_simulator`.
     *   `README.md`: This file.
     *   `requirements.txt`: Python dependencies.
 
 ## Key Files
 
-*   `gige_simulator/core/main.py`: Main application entry point.
-*   `gige_simulator/network/discovery.py`: Discovery protocol handler.
-*   `gige_simulator/network/gvcp.py`: GVCP command and register logic.
-*   `gige_simulator/network/gvsp_sender.py`: GVSP packet streaming logic.
+*   `gige_simulator/core/main.py`: CLI application entry point.
+*   `gige_simulator/gui_main.py`: GUI application entry point.
+*   `gige_simulator/core/simulator_backend.py`: Core backend logic.
+*   `gige_simulator/network/gvcp.py`: GVCP command and register logic, also initializes image source and GVSP streamer.
 *   `gige_simulator/genicam/genicam_model.xml`: The camera's feature description file.
-*   `gige_simulator/image_source/image_loader.py`: Image loading functionality.
+
+## Dependencies
+
+*   **Pillow**: For image file loading and manipulation.
+*   **PyQt6**: For the graphical user interface.
+*   **PyQt6-sip**: Required by PyQt6.
+*   **qtpy**: For Qt API abstraction (though not heavily used yet, good for future flexibility).
+
+Install dependencies using:
+```bash
+pip install -r requirements.txt
+```
 
 ## Current Limitations / Future Work
 
 *   **Continuous Streaming**: Currently, the simulator sends only one frame per `AcquisitionStart` command. Continuous streaming at a configurable frame rate requires a dedicated streaming thread for GVSP.
 *   **GVSP Packet Structure**: The GVSP packet structure is simplified. Full compliance with GigE Vision specification headers (e.g., detailed status, block ID format, packet ID format) and features (e.g., packet resends) is needed.
+*   **Multi-Camera Backend**: The GUI allows adding multiple cameras to a list, but this is purely a UI concept for now. The backend `SimulatorBackend` only manages a single instance of the discovery/GVCP/GVSP chain. True multi-camera simulation would require significant backend refactoring.
 *   **GenICam Feature Completeness**: The GenICam XML is basic. More features (e.g., Float, Boolean registers, more complex Enumerations, advanced Commands like chunk data) and standard feature naming conventions should be implemented.
-*   **Pixel Format Handling**: Primarily focused on Mono8. Support for other formats (e.g., RGB8, Bayer types) needs to be expanded in `ImageLoader`, GVCP register handling, and GVSP packet formatting.
+*   **Pixel Format Handling**: Primarily focused on Mono8 for loading and generation. Support for other formats (e.g., RGB8, Bayer types) needs to be expanded in `ImageLoader`, `CameraConfigPanel`, GVCP register handling, and GVSP packet formatting.
 *   **Register Validation**: More robust validation for register read/write operations against GenICam definitions (min, max, increment, access mode enforcement).
 *   **Error Handling**: More comprehensive error handling and reporting via GVCP status codes for various failure scenarios.
-*   **Configuration Management**: Device IP, MAC, default image path, etc., are currently hardcoded or simple defaults within the code. A more robust configuration mechanism (e.g., external config file) would be beneficial for `DEVICE_IP_ADDRESS`, `DEVICE_MAC_ADDRESS` etc. in `discovery.py`.
+*   **Configuration Management**: Device constants (IP, MAC in `discovery.py`) are hardcoded. A more robust configuration mechanism (e.g., external config file or per-instance GUI settings) is needed.
 *   **Unit Tests**: Needs comprehensive unit tests for all modules.
-*   **READMEM/WRITEMEM Commands**: Full implementation of `READMEM_CMD` and `WRITEMEM_CMD` for efficient access to large data blocks (like the full XML file, string registers, or image buffers if exposed via memory reads).
-*   **Event Handling (GVCP EVENT_CMD, EVENTDATA_CMD)**: Not yet implemented. This is important for asynchronous camera notifications.
-*   **Multiple Network Interfaces**: The simulator currently assumes a single network interface.
-*   **GVCP Heartbeat (Keep-Alive)**: The `SCPT` (Standard Control Protocol Timeout) register is defined, but actual heartbeat handling (sending `HEARTBEAT_CMD` or responding to client heartbeats to maintain control channel) is not implemented.
+*   **READMEM/WRITEMEM Commands**: Full implementation of `READMEM_CMD` and `WRITEMEM_CMD` for efficient access to large data blocks.
+*   **Event Handling (GVCP EVENT_CMD, EVENTDATA_CMD)**: Not yet implemented.
+*   **GVCP Heartbeat (Keep-Alive)**: The `SCPT` register is defined, but actual heartbeat handling is not implemented.
+*   **GUI Theme Toggle**: The "Toggle Theme" toolbar action is a placeholder and does not change the visual style yet.
+*   **Network Status Indicators**: The network status labels in the GUI are placeholders and do not display real-time data from the backend.
 
-## Dependencies
-* Pillow
-
-Install dependencies using:
-```bash
-pip install -r requirements.txt
+## Development Notes
+The GUI is developed using PyQt6. During this phase of development, visual testing of the GUI was hindered by limitations in the execution environment (lack of a suitable display server for Qt platform plugins like XCB). The code structure for the GUI panels and their basic interactions is in place, but thorough visual testing and refinement should be performed in a standard desktop environment. For example, to run Qt applications in a headless Linux environment, tools like Xvfb (X virtual framebuffer) might be necessary, or ensuring all `libxcb` and related X11 dependencies are fully installed.
 ```

@@ -1,1 +1,4 @@
 Pillow
+PyQt6
+PyQt6-sip
+qtpy

@@ -18,8 +18,9 @@ if __name__ == '__main__': # Only adjust path if this script is the entry point
         sys.path.insert(0, PROJECT_ROOT) # Add project root to the start of Python's module search path
 
 # Logger for this module (main application logic)
-# Will be named "GigESim.Main" due to getLogger call below.
-module_logger = logging.getLogger("GigESim.Main")
+# Will be named "GigESim.CliMain" due to getLogger call below for clarity.
+module_logger = logging.getLogger("GigESim.CliMain")
+from .simulator_backend import SimulatorBackend # Import the backend
 
 def run_simulator():
     """
@@ -27,22 +28,24 @@ def run_simulator():
     Parses command-line arguments, sets up logging, initializes network components,
     and starts network listeners in separate threads.
     """
-    # --- Argument Parsing ---
-    # Sets up how users can configure the simulator from the command line.
-    parser = argparse.ArgumentParser(description="GigE Camera Simulator")
+    """
+    Main function to run the GigE Camera Simulator (CLI version).
+    Parses arguments, sets up logging, initializes and starts the SimulatorBackend.
+    """
+    parser = argparse.ArgumentParser(description="GigE Camera Simulator (CLI)")
     parser.add_argument(
         "--image_path", "-i",
-        default="gige_simulator/sample_images/sample_image.png", # Default image if none specified
+        default="gige_simulator/sample_images/sample_image.png",
         help="Default image path for the simulator's image source."
     )
     parser.add_argument(
         "--discovery_port",
-        default=3956, type=int, # Standard GigE Vision discovery port
+        default=3956, type=int,
         help="UDP port for GigE discovery."
     )
     parser.add_argument(
         "--gvcp_port",
-        default=3957, type=int, # Standard GVCP port
+        default=3957, type=int,
         help="UDP port for GVCP commands."
     )
     parser.add_argument(
@@ -51,82 +54,58 @@ def run_simulator():
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         help="Set the logging level for console output."
     )
-    args = parser.parse_args() # Parse the command-line arguments
+    args = parser.parse_args()
 
-    # --- Logging Configuration ---
-    # Sets up how log messages are displayed.
     numeric_log_level = getattr(logging, args.log_level.upper(), None)
-    if not isinstance(numeric_log_level, int): # Validate log level from arguments
+    if not isinstance(numeric_log_level, int):
         raise ValueError(f'Invalid log level: {args.log_level}')
 
+    # Configure root logger for CLI mode.
+    # This will be inherited by all module loggers unless they are individually configured.
     logging.basicConfig(
-        level=numeric_log_level, # Set the global minimum log level
-        format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(message)s', # Log message format
-        datefmt='%Y-%m-%d %H:%M:%S' # Timestamp format
+        level=numeric_log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    module_logger.info(f"Starting GigE Camera Simulator with configuration: {args}")
+    module_logger.info(f"Starting GigE Camera Simulator (CLI) with configuration: {args}")
 
-    # --- Dynamic Imports & Configuration ---
-    # Import network modules *after* logging is configured so they inherit the setup.
-    # Also ensures sys.path modification (if any) has taken effect.
-    from gige_simulator.network import discovery, gvcp
-
-    # Apply command-line arguments to the network modules
-    module_logger.info(f"Setting discovery port to {args.discovery_port}")
-    discovery.set_discovery_port(args.discovery_port)
-
-    module_logger.info(f"Setting GVCP port to {args.gvcp_port}")
-    gvcp.set_gvcp_port(args.gvcp_port)
-
-    module_logger.info(f"Initializing GVCP memory map with image: {args.image_path}")
-    # This call is critical: it loads the GenICam XML, default image,
-    # and initializes the image_source_global and gvsp_streamer_global instances within gvcp.py.
-    gvcp.initialize_memory_map(args.image_path)
-
-    # --- Threading Setup for Network Listeners ---
-    # Each listener runs in its own thread so they can operate concurrently.
-    # `daemon=True` means these threads will exit when the main program exits.
-
-    module_logger.info(f"Starting Discovery listener on port {args.discovery_port} in a new thread.")
-    discovery_thread = threading.Thread(
-        target=discovery.start_discovery_listener,
-        name="DiscoveryThread", # Assign a name for easier log identification
-        daemon=True
-    )
-
-    module_logger.info(f"Starting GVCP listener on port {args.gvcp_port} in a new thread.")
-    gvcp_thread = threading.Thread(
-        target=gvcp.start_gvcp_listener,
-        name="GVCPThread",
-        daemon=True
-    )
-
-    # Start the listener threads
-    discovery_thread.start()
-    gvcp_thread.start()
-
-    module_logger.info("GigE Camera Simulator is running. Press Ctrl+C to stop.")
-
-    # --- Main Loop & Shutdown ---
-    # Keep the main thread alive to handle termination (e.g., Ctrl+C).
+    # Create and start the backend
+    backend = None # Define backend here to ensure it's in scope for finally block
     try:
+        backend = SimulatorBackend(
+            default_image_path=args.image_path,
+            discovery_port=args.discovery_port,
+            gvcp_port=args.gvcp_port
+        )
+        backend.start_servers()
+        # module_logger.info("Simulator backend servers started.") # Backend logs this already
+        module_logger.info("GigE Camera Simulator (CLI) is running. Press Ctrl+C to stop.")
+
         while True:
-            # Check if network listener threads are still alive.
-            # If a critical thread dies, the simulator might be in an unusable state.
-            if not discovery_thread.is_alive():
-                module_logger.error("Discovery thread has terminated unexpectedly. Shutting down.")
+            if not backend.is_running:
+                module_logger.info("Backend is no longer running. Shutting down CLI.")
                 break
-            if not gvcp_thread.is_alive():
-                module_logger.error("GVCP thread has terminated unexpectedly. Shutting down.")
+            # Check thread health more carefully
+            if backend.discovery_thread and not backend.discovery_thread.is_alive() and backend.is_running:
+                module_logger.error("Discovery thread has terminated unexpectedly while backend was expected to run. Shutting down CLI.")
+                backend.stop_servers()
                 break
-            time.sleep(1) # Keep main thread responsive, sleep for 1 second
-    except KeyboardInterrupt: # Handle Ctrl+C for graceful shutdown
-        module_logger.info("Ctrl+C received. Shutting down simulator...")
+            if backend.gvcp_thread and not backend.gvcp_thread.is_alive() and backend.is_running:
+                module_logger.error("GVCP thread has terminated unexpectedly while backend was expected to run. Shutting down CLI.")
+                backend.stop_servers()
+                break
+            time.sleep(1)
+    except ValueError as ve:
+        module_logger.critical(f"Configuration error: {ve}")
+    except KeyboardInterrupt:
+        module_logger.info("Ctrl+C received. Shutting down simulator (CLI)...")
+    except Exception as e:
+        module_logger.critical(f"An unexpected error occurred in CLI main: {e}", exc_info=True)
     finally:
-        # Perform any cleanup here if necessary.
-        # Daemon threads will be terminated automatically when the main program exits.
-        module_logger.info("Simulator shutdown sequence complete.")
+        if backend and backend.is_running: # Ensure backend exists and was running
+            backend.stop_servers()
+        module_logger.info("Simulator (CLI) shutdown sequence complete.")
 
 # --- Script Entry Point ---
 # This ensures run_simulator() is called only when this script is executed directly

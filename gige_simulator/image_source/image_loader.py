@@ -88,6 +88,30 @@ class StaticImageSource:
         self.file_size_bytes = 0
         logger.debug("Image data attributes have been reset.")
 
+    def load_image_from_data(self, pixel_bytes, width, height, pil_mode_string, pfnc_value):
+        """
+        Directly loads image data from a byte buffer and metadata.
+        Args:
+            pixel_bytes (bytes): The raw pixel data.
+            width (int): Image width.
+            height (int): Image height.
+            pil_mode_string (str): Pillow mode string (e.g., "L", "RGB").
+            pfnc_value (int): The GVSP PFNC value for this pixel format.
+        Returns:
+            bool: True if data was accepted.
+        """
+        self.pixel_data = pixel_bytes
+        self.width = width
+        self.height = height
+        self.pil_format = pil_mode_string
+        self.pixel_format_gvsp = pfnc_value
+        self.file_size_bytes = len(pixel_bytes) if pixel_bytes else 0
+        # Indicate that this image is not from a file path directly
+        self.image_path = f"Procedural ({pil_mode_string}, {width}x{height})"
+
+        logger.info(f"Image data loaded directly. W:{width}, H:{height}, PILMode:{pil_mode_string}, PFNC:0x{pfnc_value:08X}, Size:{self.file_size_bytes}")
+        return True
+
     def get_frame(self):
         """
         Returns a dictionary containing the current frame's pixel data and metadata.
