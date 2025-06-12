@@ -115,19 +115,42 @@ def create_discovery_response(request_packet_data, command_ip):
 
     # ControlChannelPortID (GVCP Port) (Offset 236, Size 2, uint16_t)
     # This is crucial: tells the client which port GVCP is listening on.
-    gvcp_port_to_advertise = ADVERTISED_GVCP_PORT # Use the (potentially dynamic) GVCP port
-    struct.pack_into('>H', payload, 236, gvcp_port_to_advertise)
-    logger.debug(f"GVCP port {gvcp_port_to_advertise} embedded into DISCOVERY_ACK (offset 236).")
+    gvcp_port_to_advertise = ADVERTISED_GVCP_PORT
+    struct.pack_into('>H', payload, 236, gvcp_port_to_advertise) # ControlChannelPortID
 
-    # Number of Network Interfaces (Offset 242, Size 2, uint16_t)
-    struct.pack_into('>H', payload, 242, 1) # Simulating one interface
+    # Reserved field (Offset 238, Size 2, uint16_t)
+    struct.pack_into('>H', payload, 238, 0) # Reserved, set to 0
+
+    # Number of Network Interfaces (Offset 240, Size 2, uint16_t) - Shifted from 242
+    struct.pack_into('>H', payload, 240, 1) # Simulating one interface
+
+    # Offsets 242-263 (22 bytes) are reserved and are already initialized to zero by `payload = bytearray(264)`.
+    # No explicit packing needed for this final reserved area if it's all zeros.
 
     # --- DISCOVERY_ACK Header (Simplified for UDP transmission) ---
-    # Command Code (2B), Length of Payload (2B), Sequence ID (2B) = 6 bytes total
-    # This header precedes the 264-byte payload.
     header = struct.pack('>HHH', ACK_DISCOVERY_ACK, len(payload), parsed_sequence_id)
 
-    logger.debug(f"Constructed DISCOVERY_ACK (Header: {header.hex()}, Payload len: {len(payload)}) for SeqID {parsed_sequence_id}")
+    # Enhanced Logging
+    logger.debug(f"DISCOVERY_ACK Payload Details (Total {len(payload)} bytes):")
+    logger.debug(f"  GigE Version: {GIGE_VISION_VERSION_MAJOR}.{GIGE_VISION_VERSION_MINOR} (Offsets 0, 2)")
+    logger.debug(f"  Device Mode: 0x{device_mode:08X} (Offset 4)")
+    logger.debug(f"  MAC Address: {DEVICE_MAC_ADDRESS} (Offsets 8, 10)")
+    logger.debug(f"  Device IP: {DEVICE_IP_ADDRESS} (Offset 30)")
+    logger.debug(f"  Subnet Mask: {SUBNET_MASK} (Offset 46)")
+    logger.debug(f"  Default Gateway: {DEFAULT_GATEWAY} (Offset 62)")
+    logger.debug(f"  Manufacturer: {DEVICE_MANUFACTURER_NAME} (Offset 78)")
+    logger.debug(f"  Model: {DEVICE_MODEL_NAME} (Offset 110)")
+    logger.debug(f"  Device Version: {DEVICE_VERSION} (Offset 142)")
+    logger.debug(f"  Serial Number: {DEVICE_SERIAL_NUMBER} (Offset 222)")
+    logger.debug(f"  GVCP Port (ControlChannelPortID): {gvcp_port_to_advertise} (Offset 236)")
+    logger.debug(f"  Reserved Field (after GVCP port): 0x{payload[238:240].hex()} (Offset 238)")
+    num_interfaces_val = struct.unpack('>H', payload[240:242])[0]
+    logger.debug(f"  Num Interfaces: {num_interfaces_val} (Offset 240)")
+    logger.debug(f"  Final 22 reserved bytes (offsets 242-263) are zero-padded.")
+    # logger.debug(f"  Full Payload Hex (first 32 bytes): {payload[:32].hex()}...")
+    # logger.debug(f"  Full Payload Hex (last 32 bytes): {...payload[-32:].hex()}")
+
+    logger.info(f"Constructed DISCOVERY_ACK (Header: {header.hex()}, Payload len: {len(payload)}) for SeqID {parsed_sequence_id}")
     return header + payload
 
 def start_discovery_listener():

@@ -156,15 +156,28 @@ class SimulatorBackend:
         else:
             logger.error("Cannot update GVSP streamer destination, streamer not initialized.")
 
-        # DeviceModelName (Camera Name) update - if it's part of the config and writable
-        if 'camera_name' in config_dict: # Assuming camera_name from GUI might update DeviceModelName
-            model_name_addr = gvcp_module.camera_registers.get(0x0068) # Address of DeviceModelName string
-            if model_name_addr: # Check if this register (pointer) exists
-                # Ensure the value from config_dict is a string before encoding
-                name_to_write = str(config_dict['camera_name'])
-                name_bytes = name_to_write.encode('utf-8')[:31].ljust(32, b'\0') # Max 32 bytes including null
-                gvcp_module.memory_map_data[model_name_addr : model_name_addr + 32] = name_bytes
-                logger.debug(f"Backend DeviceModelName string (at 0x{model_name_addr:08X}) updated to: {name_to_write}")
+        # DeviceModelName (Camera Name) update
+        if 'device_model_name' in config_dict:
+            new_name_str = config_dict['device_model_name']
+            logger.info(f"Attempting to update DeviceModelName to: '{new_name_str}'")
+            name_bytes = new_name_str.encode('utf-8')
+            # Truncate if longer than 31 bytes (to allow for null terminator), then pad to 32 bytes.
+            padded_name_bytes = name_bytes[:31].ljust(32, b'\x00')
+
+            # Address 0x0068 in camera_registers stores the *memory address* in memory_map_data for DeviceModelName.
+            model_name_address_in_map = gvcp_module.camera_registers.get(0x0068, None)
+
+            if model_name_address_in_map is not None:
+                start_index = model_name_address_in_map
+                end_index = start_index + 32 # Length of DeviceModelName is 32 bytes
+
+                if end_index <= len(gvcp_module.memory_map_data):
+                    gvcp_module.memory_map_data[start_index:end_index] = padded_name_bytes
+                    logger.info(f"DeviceModelName updated in memory_map_data to: '{new_name_str}' (raw: {padded_name_bytes.hex()}) at mem 0x{start_index:08X}")
+                else:
+                    logger.error(f"Calculated end index for DeviceModelName ({end_index}) is out of bounds for memory_map_data (len: {len(gvcp_module.memory_map_data)}).")
+            else:
+                logger.error("DeviceModelName address key (0x0068) not found in camera_registers. Cannot update name.")
 
         logger.info("Camera config applied to backend registers and/or memory map.")
 

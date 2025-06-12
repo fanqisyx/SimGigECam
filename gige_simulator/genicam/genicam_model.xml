@@ -77,7 +77,7 @@
     <StringReg Name="DeviceModelName">
         <Address>0x0068</Address> <!-- Standard GEV address for the feature -->
         <Length>32</Length>
-        <AccessMode>RO</AccessMode>
+        <AccessMode>RW</AccessMode> <!-- Changed to RW -->
         <Value>PySimCam</Value>
     </StringReg>
     <StringReg Name="DeviceVersion">

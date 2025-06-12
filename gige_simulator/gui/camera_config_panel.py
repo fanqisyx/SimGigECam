@@ -25,8 +25,8 @@ class CameraConfigPanel(QWidget):
         form_layout = QFormLayout(params_group)
 
         self.camera_name_edit = QLineEdit()
-        self.camera_name_edit.setToolTip("Reflects the DeviceModelName from the backend. Read-only here.")
-        self.camera_name_edit.setReadOnly(True)
+        self.camera_name_edit.setToolTip("Device Model Name. Applied to backend. Max 31 UTF-8 chars.")
+        # self.camera_name_edit.setReadOnly(True) # Make it editable
         form_layout.addRow("Camera Name:", self.camera_name_edit)
 
         self.width_edit = QLineEdit()
@@ -174,9 +174,10 @@ class CameraConfigPanel(QWidget):
                 'width': self.width_edit.text(),
                 'height': self.height_edit.text(),
                 'pixel_format_pfnc': self.get_pixel_format_from_selection(),
-                'camera_name': self.camera_name_edit.text(), # Though RO, pass it for completeness
+                'device_model_name': self.camera_name_edit.text(), # Use 'device_model_name' as key
                 'client_ip': self.client_ip_edit.text(),
                 'client_port': self.client_port_edit.text()
+                # 'framerate' is not applied to backend as it's RO in UI
             }
 
             self.simulator_backend.apply_camera_config(config_dict)
@@ -253,10 +254,12 @@ class CameraConfigPanel(QWidget):
         logger.info("Reset UI to Defaults button clicked.")
         self.width_edit.setText("640")
         self.height_edit.setText("480")
-        self.framerate_edit.setText("30.0")
-        self.set_pixel_format_selection(0x01080001) # Mono8
+        self.framerate_edit.setText("N/A (Not Implemented)") # Keep as per previous setup
+        self.set_pixel_format_selection(PFNC_MONO8)
         self.freerun_radio.setChecked(True)
-        # self.camera_name_edit.setText("PySimCamDefault_UIReset") # If it were editable
+        self.camera_name_edit.setText("PySimCamDefaultUI")
+        self.client_ip_edit.setText("")
+        self.client_port_edit.setText("")
         logger.debug("UI fields reset to default values.")
 
     def get_pixel_format_from_selection(self):

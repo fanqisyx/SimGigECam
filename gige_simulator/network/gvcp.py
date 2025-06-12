@@ -246,6 +246,20 @@ def handle_readreg_cmd(request_id, data_payload):
         chunk = memory_map_data[reg_addr : reg_addr + 4].ljust(4, b'\0')
         reg_value_to_pack = struct.unpack('>I', chunk)[0]
         logger.debug(f"  Read from Strings Area memory: 0x{reg_addr:08X} -> Value: 0x{reg_value_to_pack:08X} (bytes: {chunk.hex()})")
+
+        # Enhanced logging for DeviceModelName access
+        device_model_name_start_addr = camera_registers.get(0x0068) # Address where DeviceModelName string data starts
+        if device_model_name_start_addr is not None and \
+           device_model_name_start_addr <= reg_addr < (device_model_name_start_addr + 32): # 32 is length of DeviceModelName
+            try:
+                # For logging, get the full string value from its start address
+                full_name_bytes = memory_map_data[device_model_name_start_addr : device_model_name_start_addr + 32]
+                null_idx = full_name_bytes.find(b'\x00')
+                log_name = full_name_bytes[:null_idx].decode('utf-8', errors='replace') if null_idx != -1 else full_name_bytes.decode('utf-8', errors='replace')
+                logger.debug(f"GVCP Read: Accessing DeviceModelName region (0x{device_model_name_start_addr:08X} to 0x{device_model_name_start_addr+31:08X}). Current full name in backend: '{log_name}'")
+            except Exception as e:
+                logger.debug(f"GVCP Read: Accessing DeviceModelName region. Error decoding for log: {e}")
+
     elif IMAGE_PATH_STRING_MEMORY_ADDRESS <= reg_addr < IMAGE_PATH_STRING_MEMORY_ADDRESS + 256 + 3: # Image path string area
         chunk = memory_map_data[reg_addr : reg_addr + 4].ljust(4, b'\0')
         reg_value_to_pack = struct.unpack('>I', chunk)[0]
